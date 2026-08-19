@@ -38,11 +38,12 @@ jobs:
         with:
           use-installer: true
 
-      # SAM's esbuild builder installs only production dependencies into its
-      # scratch directory, so esbuild (a devDependency here) isn't there when
-      # it looks for it. AWS recommends having it on PATH — this does that.
-      - run: npm install -g esbuild
-
+      # Note: esbuild is a runtime dependency in package.json rather than a
+      # devDependency. SAM's esbuild builder copies the source to a scratch
+      # directory, runs a production-only `npm install` there, and then looks
+      # for esbuild inside it — so a devDependency (or a global install) isn't
+      # visible to it. It costs nothing at runtime: the deployed artifact is
+      # the bundled file, without node_modules.
       - run: sam build
 
       # Every parameter is passed explicitly: CloudFormation would keep the
