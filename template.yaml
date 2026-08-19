@@ -41,7 +41,11 @@ Resources:
   ApiFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: ./
+      # Points at the pre-bundled output of `npm run bundle`, not at the
+      # source tree: esbuild is run directly (see package.json) instead of
+      # through SAM's BuildMethod, which resolves esbuild inside its own
+      # scratch directory and fails to find it on a CI runner.
+      CodeUri: build/
       Handler: lambda.handler
       Description: Products, Stripe Checkout and AI assistant endpoints.
       Environment:
@@ -58,18 +62,6 @@ Resources:
         # duplicated headers that browsers reject.
         Api:
           Type: HttpApi
-    Metadata:
-      # SAM bundles the TypeScript directly with esbuild, so node_modules is
-      # never uploaded — the artifact is one JS file plus the bundled JSON
-      # catalogue data.
-      BuildMethod: esbuild
-      BuildProperties:
-        Format: cjs
-        Target: es2020
-        Minify: false
-        Sourcemap: false
-        EntryPoints:
-          - src/lambda.ts
 
 Outputs:
   ApiUrl:

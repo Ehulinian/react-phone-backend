@@ -38,13 +38,11 @@ jobs:
         with:
           use-installer: true
 
-      # Note: esbuild is a runtime dependency in package.json rather than a
-      # devDependency. SAM's esbuild builder copies the source to a scratch
-      # directory, runs a production-only `npm install` there, and then looks
-      # for esbuild inside it — so a devDependency (or a global install) isn't
-      # visible to it. It costs nothing at runtime: the deployed artifact is
-      # the bundled file, without node_modules.
-      - run: sam build
+      # Bundling is done here rather than through SAM's esbuild BuildMethod,
+      # which resolves esbuild inside its own scratch directory and can't see
+      # the project's dependencies on a CI runner. `sam deploy` then just
+      # uploads the contents of build/ (see CodeUri in template.yaml).
+      - run: npm run bundle
 
       # Every parameter is passed explicitly: CloudFormation would keep the
       # previous values for anything omitted, but being explicit here means

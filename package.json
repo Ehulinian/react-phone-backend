@@ -8,14 +8,13 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
-    "aws:build": "sam build",
-    "aws:deploy": "sam build && sam deploy",
+    "bundle": "esbuild src/lambda.ts --bundle --platform=node --target=node20 --format=cjs --outfile=build/lambda.js",
+    "aws:deploy": "npm run bundle && sam deploy",
     "aws:logs": "sam logs --stack-name react-catalog-backend --tail"
   },
   "dependencies": {
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
-    "esbuild": "^0.28.2",
     "express": "^4.19.2",
     "openai": "^7.4.0",
     "serverless-http": "^4.0.0",
@@ -25,6 +24,7 @@
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
     "@types/node": "^20.14.10",
+    "esbuild": "^0.28.2",
     "tsx": "^4.16.2",
     "typescript": "^5.5.3"
   },
