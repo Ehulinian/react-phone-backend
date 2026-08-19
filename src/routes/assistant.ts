@@ -60,6 +60,34 @@ assistantRouter.post('/assistant', async (req, res) => {
     // eslint-disable-next-line no-console
     console.error('Assistant request failed', error);
 
-    return res.status(502).json({ error: 'Assistant is unavailable' });
+    // The upstream reason (bad key, unknown model, exhausted quota) is the
+    // only thing that makes a 502 actionable, and OpenAI's error payloads
+    // don't echo the API key back, so it is safe to pass through.
+    const detail = describeUpstreamError(error);
+
+    return res.status(502).json({
+      error: 'Assistant is unavailable',
+      detail,
+    });
   }
 });
+
+function describeUpstreamError(error: unknown): string {
+  if (typeof error !== 'object' || error === null) {
+    return 'Unknown error';
+  }
+
+  const { status, code, message } = error as {
+    status?: number;
+    code?: string;
+    message?: string;
+  };
+
+  return [
+    status ? `status ${status}` : null,
+    code ? `code ${code}` : null,
+    message ?? null,
+  ]
+    .filter(Boolean)
+    .join(' — ');
+}

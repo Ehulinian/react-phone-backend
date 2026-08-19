@@ -1,0 +1,80 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  phone-catalog-backend as a single Lambda function behind an API Gateway
+  HTTP API. Express still does all the routing internally, so this is the
+  same app that runs locally with `npm run dev`.
+
+Parameters:
+  AllowedOrigins:
+    Type: String
+    Description: Comma-separated CORS allow-list, e.g. "https://ehulinian.github.io,http://localhost:3000"
+    Default: http://localhost:3000
+  FrontendUrl:
+    Type: String
+    Description: Where Stripe Checkout redirects back to after payment.
+    Default: http://localhost:3000
+  StripeSecretKey:
+    Type: String
+    Description: Stripe secret key (test mode).
+    NoEcho: true
+    Default: ''
+  OpenAiApiKey:
+    Type: String
+    Description: OpenAI API key used by the shopping assistant.
+    NoEcho: true
+    Default: ''
+
+Globals:
+  Function:
+    Runtime: nodejs20.x
+    # arm64 is cheaper per GB-second than x86 and everything here is pure JS.
+    Architectures:
+      - arm64
+    MemorySize: 512
+    # API Gateway HTTP APIs cap an integration at 30s, so there's no point
+    # letting the function outlive that. The assistant route is the only one
+    # that gets anywhere near it (it can make several OpenAI calls).
+    Timeout: 29
+
+Resources:
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./
+      Handler: lambda.handler
+      Description: Products, Stripe Checkout and AI assistant endpoints.
+      Environment:
+        Variables:
+          ALLOWED_ORIGINS: !Ref AllowedOrigins
+          FRONTEND_URL: !Ref FrontendUrl
+          STRIPE_SECRET_KEY: !Ref StripeSecretKey
+          OPENAI_API_KEY: !Ref OpenAiApiKey
+      Events:
+        # No Path/Method: this creates the HTTP API's $default route, so every
+        # request is forwarded to Express rather than being mapped here. CORS
+        # is deliberately NOT configured on the API Gateway side — Express
+        # already sets those headers, and having both set them results in
+        # duplicated headers that browsers reject.
+        Api:
+          Type: HttpApi
+    Metadata:
+      # SAM bundles the TypeScript directly with esbuild, so node_modules is
+      # never uploaded — the artifact is one JS file plus the bundled JSON
+      # catalogue data.
+      BuildMethod: esbuild
+      BuildProperties:
+        Format: cjs
+        Target: es2020
+        Minify: false
+        Sourcemap: false
+        EntryPoints:
+          - src/lambda.ts
+
+Outputs:
+  ApiUrl:
+    Description: Base URL of the deployed API — set this as REACT_APP_API_URL in the frontend.
+    Value: !Sub 'https://${ServerlessHttpApi}.execute-api.${AWS::Region}.amazonaws.com'
+  FunctionName:
+    Description: Lambda function name, for `sam logs -n <name>`.
+    Value: !Ref ApiFunction

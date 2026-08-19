@@ -8,6 +8,7 @@ Small Express + TypeScript API for the [react_phone-catalog](https://github.com/
 - `GET /api/products` — full flat product list (same shape as the old `products.json`).
 - `GET /api/products/:category` — full specs for `phones` / `tablets` / `accessories`.
 - `POST /api/checkout/session` — creates a Stripe Checkout Session. Body: `{ items: [{ id, name, price, quantity, image? }] }`. Returns `{ url }` — redirect the browser there.
+- `POST /api/assistant` — shopping assistant. Body: `{ messages: [{ role, content }] }`. Uses OpenAI tool calling: the model decides when to invoke a `search_products` function against the catalogue, and the reply comes back with any matched products attached.
 
 ## Local development
 
@@ -21,19 +22,55 @@ npm run dev
 
 The server starts on `http://localhost:4000` by default (`PORT` in `.env`).
 
-## Deploying (Render.com)
+## Deployment targets
 
-1. Push this repo to GitHub.
-2. On [render.com](https://render.com), New → Web Service → connect the repo.
-3. Build command: `npm install && npm run build`
-4. Start command: `npm start`
-5. Add environment variables in the Render dashboard:
-   - `STRIPE_SECRET_KEY` — your Stripe secret key (test or live).
-   - `ALLOWED_ORIGINS` — comma-separated list, e.g. `https://your-username.github.io`
-   - `FRONTEND_URL` — your deployed frontend URL, e.g. `https://your-username.github.io/react_phone-catalog`
-6. Deploy. Render gives you a URL like `https://phone-catalog-backend.onrender.com`.
+The Express app in `src/app.ts` never calls `.listen()`, so each platform gets
+a thin adapter and the application code stays identical:
 
-Note: on Render's free tier the service sleeps after 15 minutes of inactivity — the first request after a while takes a few extra seconds to wake it up. Fine for a portfolio demo.
+| Target | Adapter | Notes |
+| --- | --- | --- |
+| Local / any Node host | `src/index.ts` | Plain `app.listen()` |
+| AWS Lambda | `src/lambda.ts` | `serverless-http`, deployed with SAM |
+| Vercel | `api/index.ts` | Exports the app; `vercel.json` rewrites all paths to it |
+
+### AWS (Lambda + API Gateway)
+
+Deployed as a single Lambda behind an HTTP API — Express still does the
+routing, API Gateway is only the transport. Infrastructure lives in
+`template.yaml` (AWS SAM); the TypeScript is bundled by esbuild, so
+`node_modules` is never uploaded.
+
+Prerequisites: an AWS account, the [SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html), and `aws configure` with credentials.
+
+```bash
+sam build
+sam deploy --guided     # first time only — saves answers to samconfig.toml
+```
+
+The guided deploy asks for the four stack parameters (`AllowedOrigins`,
+`FrontendUrl`, `StripeSecretKey`, `OpenAiApiKey`). On success it prints
+`ApiUrl` — that's what the frontend's `REACT_APP_API_URL` should point at.
+
+Afterwards:
+
+```bash
+npm run aws:deploy    # build + deploy
+npm run aws:logs      # tail CloudWatch logs
+```
+
+**CI/CD.** `.github/workflows/deploy-aws.yml` type-checks and deploys on every
+push to `main`. It needs these repository secrets: `AWS_ACCESS_KEY_ID`,
+`AWS_SECRET_ACCESS_KEY`, `ALLOWED_ORIGINS`, `FRONTEND_URL`,
+`STRIPE_SECRET_KEY`, `OPENAI_API_KEY`.
+
+**Cost.** Lambda's always-free allowance is 1M requests/month and API Gateway
+bills per request; a portfolio demo stays comfortably inside it.
+
+**Two things I'd change for a production deployment:** secrets are passed as
+CloudFormation parameters (`NoEcho`) rather than being read from Secrets
+Manager or SSM Parameter Store at runtime, and CI authenticates with a
+long-lived access key instead of a GitHub OIDC role. Both are fine for a demo
+stack and both are the first things I'd swap out for real customer data.
 
 ## Wiring up the frontend
 
