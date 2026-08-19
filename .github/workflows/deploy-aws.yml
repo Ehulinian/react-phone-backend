@@ -38,6 +38,11 @@ jobs:
         with:
           use-installer: true
 
+      # SAM's esbuild builder installs only production dependencies into its
+      # scratch directory, so esbuild (a devDependency here) isn't there when
+      # it looks for it. AWS recommends having it on PATH — this does that.
+      - run: npm install -g esbuild
+
       - run: sam build
 
       # Every parameter is passed explicitly: CloudFormation would keep the
