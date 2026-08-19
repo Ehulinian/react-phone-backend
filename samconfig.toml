@@ -6,7 +6,7 @@ resolve_s3 = true
 s3_prefix = "react-catalog-backend"
 region = "eu-west-1"
 capabilities = "CAPABILITY_IAM"
-parameter_overrides = "AllowedOrigins=\": https://ehulinian.github.io\" FrontendUrl=\"https://ehulinian.github.io/react_phone-catalog\""
+parameter_overrides = "AllowedOrigins=\"https://ehulinian.github.io\" FrontendUrl=\"https://ehulinian.github.io/react_phone-catalog\""
 image_repositories = []
 
 [default.global.parameters]
