@@ -1,0 +1,65 @@
+name: Deploy to AWS
+
+on:
+  push:
+    branches: [main]
+  # Lets you re-deploy from the Actions tab without pushing a commit.
+  workflow_dispatch:
+
+# Two deploys touching the same CloudFormation stack at once will fail, so
+# queue them instead of running in parallel.
+concurrency:
+  group: deploy-aws
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      # Fail the deploy on a type error rather than shipping a broken build.
+      - run: npm run typecheck
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-west-1
+
+      - uses: aws-actions/setup-sam@v2
+        with:
+          use-installer: true
+
+      - run: sam build
+
+      # Every parameter is passed explicitly: CloudFormation would keep the
+      # previous values for anything omitted, but being explicit here means
+      # the deployed config always matches what's in the repo secrets.
+      - name: sam deploy
+        run: |
+          sam deploy \
+            --stack-name react-catalog-backend \
+            --capabilities CAPABILITY_IAM \
+            --resolve-s3 \
+            --no-confirm-changeset \
+            --no-fail-on-empty-changeset \
+            --parameter-overrides \
+              AllowedOrigins="${{ secrets.ALLOWED_ORIGINS }}" \
+              FrontendUrl="${{ secrets.FRONTEND_URL }}" \
+              StripeSecretKey="${{ secrets.STRIPE_SECRET_KEY }}" \
+              OpenAiApiKey="${{ secrets.OPENAI_API_KEY }}"
+
+      - name: Show API URL
+        run: |
+          aws cloudformation describe-stacks \
+            --stack-name react-catalog-backend \
+            --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" \
+            --output text

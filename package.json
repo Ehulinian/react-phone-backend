@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit",
     "aws:build": "sam build",
     "aws:deploy": "sam build && sam deploy",
-    "aws:logs": "sam logs --stack-name phone-catalog-backend --tail"
+    "aws:logs": "sam logs --stack-name react-catalog-backend --tail"
   },
   "dependencies": {
     "cors": "^2.8.5",
